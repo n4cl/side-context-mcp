@@ -2,7 +2,7 @@
   "name": "side-context-mcp",
   "version": "0.1.0",
   "description": "Local MCP server for shared task context",
-  "main": "dist/index.js",
+  "main": "dist/mcp/server.js",
   "scripts": {
     "test": "vitest run",
     "build": "tsc",
@@ -13,6 +13,9 @@
   "keywords": [],
   "author": "",
   "license": "ISC",
+  "bin": {
+    "side-context-mcp": "dist/bin/side-context-mcp.js"
+  },
   "packageManager": "pnpm@10.20.0",
   "devDependencies": {
     "@eslint/js": "^9.38.0",
@@ -27,8 +30,12 @@
     "vitest": "^4.0.5"
   },
   "type": "module",
-  "types": "dist/index.d.ts",
+  "types": "dist/mcp/server.d.ts",
   "engines": {
     "node": ">=24"
+  },
+  "dependencies": {
+    "fastmcp": "^3.22.0",
+    "zod": "^4.1.12"
   }
 }
