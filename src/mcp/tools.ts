@@ -35,13 +35,13 @@ const createPlaceholderTool = (name: string, description: string): MCPTool => {
 };
 
 /**
- * TODO エントリを扱う MCP ツール群を組み立てる。
+ * やることエントリを扱う MCP ツール群を組み立てる。
  * 現時点で実装済みなのは `createEntries` のみで、他はプレースホルダー。
  */
 export const buildEntryTools = (): MCPTool[] => {
   const createEntriesTool: MCPTool = {
     name: 'createEntries',
-    description: 'エントリ（TODO）をまとめて追加する。',
+    description: 'エントリ（やることメモ）をまとめて追加する。',
     parameters: castSchema(createEntriesParameters),
     execute: async (args) => {
       const parsed = createEntriesParameters.parse(args) as {

@@ -4,10 +4,10 @@ import { buildEntryTools } from './tools.js';
 const SERVER_NAME = 'side-context-mcp';
 const SERVER_VERSION = '0.1.0';
 const SERVER_INSTRUCTIONS =
-  'side-context-mcp MCP server providing shared TODO entry operations.';
+  'side-context-mcp MCP server providing shared entry memo operations.';
 
 /**
- * TODO エントリ向けツールを公開する FastMCP サーバーを生成し初期化する。
+ * やることエントリ向けツールを公開する FastMCP サーバーを生成し初期化する。
  */
 export const createSideContextServer = () => {
   const server = new FastMCP({

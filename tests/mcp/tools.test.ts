@@ -80,7 +80,7 @@ describe('buildEntryTools', () => {
     const result = await createEntries!.execute(
       {
         entries: [
-          { title: '朝会の準備', note: 'API 進捗を共有' },
+          { title: '朝会の準備メモ', note: 'API 進捗を共有' },
           { title: 'レビューコメントを書く' },
         ],
       },
