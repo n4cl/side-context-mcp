@@ -1,6 +1,10 @@
 import { UserError, type Tool, type ToolParameters } from 'fastmcp';
 import { z } from 'zod';
-import { createEntryRecords, type CreateEntryInput } from './storage/entryRepository.js';
+import {
+  createEntryRecords,
+  listEntrySummaries,
+  type CreateEntryInput,
+} from './storage/entryRepository.js';
 
 const notImplemented = async (): Promise<never> => {
   throw new UserError('Not implemented');
@@ -36,7 +40,7 @@ const createPlaceholderTool = (name: string, description: string): MCPTool => {
 
 /**
  * やることエントリを扱う MCP ツール群を組み立てる。
- * 現時点で実装済みなのは `createEntries` のみで、他はプレースホルダー。
+ * 現状は `createEntries` と `listEntries` を提供し、残りはプレースホルダー。
  */
 export const buildEntryTools = (): MCPTool[] => {
   const createEntriesTool: MCPTool = {
@@ -55,6 +59,25 @@ export const buildEntryTools = (): MCPTool[] => {
     },
   };
 
+  const listEntriesTool: MCPTool = {
+    name: 'listEntries',
+    description: '登録済みのやることエントリを取得する。',
+    parameters: castSchema(
+      z
+        .object({
+          includeDone: z.boolean().optional(),
+        })
+        .optional(),
+    ),
+    execute: async (args) => {
+      const parsed = (args as { includeDone?: boolean } | undefined) ?? {};
+      const summaries = await listEntrySummaries({
+        includeDone: parsed.includeDone === true,
+      });
+      return JSON.stringify(summaries);
+    },
+  };
+
   return [
     createEntriesTool,
     createPlaceholderTool(
@@ -69,9 +92,6 @@ export const buildEntryTools = (): MCPTool[] => {
       'updateEntry',
       'エントリの内容やステータスを更新する（未実装）。',
     ),
-    createPlaceholderTool(
-      'listEntries',
-      '登録済みエントリを一覧表示する（未実装）。',
-    ),
+    listEntriesTool,
   ];
 };

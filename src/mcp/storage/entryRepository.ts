@@ -1,7 +1,7 @@
 import { promises as fs } from 'node:fs';
 import path from 'node:path';
 import { resolveEntriesDir } from './paths.js';
-import type { EntryRecord } from '../types.js';
+import type { EntryRecord, EntryStatus } from '../types.js';
 
 const ENTRY_PREFIX = 'entry_';
 const ENTRY_EXTENSION = '.json';
@@ -96,4 +96,60 @@ export const createEntryRecords = async (
   }
 
   return records;
+};
+
+export type EntrySummary = Pick<
+  EntryRecord,
+  'entryId' | 'title' | 'status' | 'updatedAt'
+>;
+
+/**
+ * 保存済みエントリを読み込み、ツール一覧向けの軽量サマリーを返す。
+ */
+export interface ListEntrySummariesOptions {
+  readonly includeDone?: boolean;
+}
+
+const DEFAULT_STATUS_WHEN_EXCLUDED = new Set<EntryStatus>(['todo', 'doing']);
+
+export const listEntrySummaries = async (
+  options: ListEntrySummariesOptions = {},
+): Promise<EntrySummary[]> => {
+  const entriesDir = resolveEntriesDir();
+
+  let files: string[];
+  try {
+    files = await fs.readdir(entriesDir);
+  } catch (error: unknown) {
+    if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
+      return [];
+    }
+    throw error;
+  }
+
+  const jsonFiles = files.filter((fileName) =>
+    fileName.endsWith(ENTRY_EXTENSION),
+  );
+
+  const summaries = await Promise.all(
+    jsonFiles.map(async (fileName) => {
+      const filePath = path.join(entriesDir, fileName);
+      const raw = await fs.readFile(filePath, 'utf8');
+      const record = JSON.parse(raw) as EntryRecord;
+
+      return {
+        entryId: record.entryId,
+        title: record.title,
+        status: record.status,
+        updatedAt: record.updatedAt,
+      } satisfies EntrySummary;
+    }),
+  );
+
+  const shouldIncludeDone = options.includeDone === true;
+  const filtered = shouldIncludeDone
+    ? summaries
+    : summaries.filter(({ status }) => DEFAULT_STATUS_WHEN_EXCLUDED.has(status));
+
+  return filtered.sort((a, b) => a.entryId.localeCompare(b.entryId));
 };

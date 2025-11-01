@@ -114,10 +114,115 @@ describe('buildEntryTools', () => {
     const tools = buildEntryTools();
     const context = createContextStub();
 
-    for (const tool of tools.filter(({ name }) => name !== 'createEntries')) {
+    for (const tool of tools.filter(({ name }) =>
+      !['createEntries', 'listEntries'].includes(name),
+    )) {
       await expect(tool.execute({} as never, context)).rejects.toBeInstanceOf(
         UserError,
       );
     }
+  });
+
+  it('listEntries が保存済みエントリを返す', async () => {
+    // 事前にエントリを作成し、一覧取得で想定の要約が返ることを確かめる。
+    const tools = buildEntryTools();
+    const context = createContextStub();
+    const createEntries = tools.find(({ name }) => name === 'createEntries');
+    const listEntries = tools.find(({ name }) => name === 'listEntries');
+
+    expect(createEntries).toBeDefined();
+    expect(listEntries).toBeDefined();
+
+    await createEntries!.execute(
+      {
+        entries: [
+          { title: '一覧テスト1', note: 'メモを確認' },
+          { title: '一覧テスト2' },
+        ],
+      },
+      context,
+    );
+
+    const result = await listEntries!.execute({}, context);
+    const summaries = JSON.parse(result as string) as Array<{
+      entryId: string;
+      title: string;
+      status: string;
+      updatedAt: string;
+    }>;
+
+    expect(summaries).toHaveLength(2);
+    expect(summaries).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          title: '一覧テスト1',
+          status: 'todo',
+        }),
+        expect.objectContaining({
+          title: '一覧テスト2',
+          status: 'todo',
+        }),
+      ]),
+    );
+  });
+
+  it('listEntries が includeDone の入力を尊重する', async () => {
+    const tools = buildEntryTools();
+    const context = createContextStub();
+    const createEntries = tools.find(({ name }) => name === 'createEntries');
+    const listEntries = tools.find(({ name }) => name === 'listEntries');
+
+    expect(createEntries).toBeDefined();
+    expect(listEntries).toBeDefined();
+
+    const result = await createEntries!.execute(
+      {
+        entries: [
+          { title: 'フィルター対象 todo' },
+          { title: 'フィルター対象 done' },
+        ],
+      },
+      context,
+    );
+
+    const { entryIds } = JSON.parse(result as string) as {
+      entryIds: string[];
+    };
+
+    const doneEntryId = entryIds[1];
+    const donePath = path.join(tempDir, 'entries', `${doneEntryId}.json`);
+    const doneRecord = JSON.parse(await fs.readFile(donePath, 'utf8')) as Record<string, unknown>;
+    doneRecord.status = 'done';
+    await fs.writeFile(donePath, `${JSON.stringify(doneRecord, null, 2)}\n`, 'utf8');
+
+    const defaultParsed = JSON.parse((await listEntries!.execute({}, context)) as string) as Array<{
+      entryId: string;
+      status: string;
+    }>;
+
+    expect(defaultParsed).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ entryId: entryIds[0], status: 'todo' }),
+      ]),
+    );
+    expect(defaultParsed).toEqual(
+      expect.not.arrayContaining([
+        expect.objectContaining({ entryId: doneEntryId, status: 'done' }),
+      ]),
+    );
+
+    const includeDoneParsed = JSON.parse(
+      (await listEntries!.execute({ includeDone: true }, context)) as string,
+    ) as Array<{
+      entryId: string;
+      status: string;
+    }>;
+
+    expect(includeDoneParsed).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ entryId: entryIds[0], status: 'todo' }),
+        expect.objectContaining({ entryId: doneEntryId, status: 'done' }),
+      ]),
+    );
   });
 });
