@@ -1,11 +1,14 @@
 import { FastMCP } from 'fastmcp';
-import { buildTaskTools } from './tools.js';
+import { buildEntryTools } from './tools.js';
 
 const SERVER_NAME = 'side-context-mcp';
 const SERVER_VERSION = '0.1.0';
 const SERVER_INSTRUCTIONS =
-  'side-context-mcp MCP server exposing task management operations.';
+  'side-context-mcp MCP server providing shared TODO entry operations.';
 
+/**
+ * TODO エントリ向けツールを公開する FastMCP サーバーを生成し初期化する。
+ */
 export const createSideContextServer = () => {
   const server = new FastMCP({
     name: SERVER_NAME,
@@ -13,11 +16,14 @@ export const createSideContextServer = () => {
     instructions: SERVER_INSTRUCTIONS,
   });
 
-  server.addTools(buildTaskTools());
+  server.addTools(buildEntryTools());
 
   return server;
 };
 
+/**
+ * 公開しているサーバーのメタデータ。
+ */
 export const serverMetadata = {
   name: SERVER_NAME,
   version: SERVER_VERSION,

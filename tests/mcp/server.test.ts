@@ -22,18 +22,18 @@ vi.mock('fastmcp', () => {
   };
 });
 
-const buildTaskToolsMock = vi.fn();
+const buildEntryToolsMock = vi.fn();
 
 vi.mock('../../src/mcp/tools.js', async (importOriginal) => {
   try {
     const actual = await importOriginal<typeof import('../../src/mcp/tools.js')>();
     return {
       ...actual,
-      buildTaskTools: buildTaskToolsMock,
+      buildEntryTools: buildEntryToolsMock,
     };
   } catch {
     return {
-      buildTaskTools: buildTaskToolsMock,
+      buildEntryTools: buildEntryToolsMock,
     };
   }
 });
@@ -41,7 +41,7 @@ vi.mock('../../src/mcp/tools.js', async (importOriginal) => {
 describe('createSideContextServer', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    buildTaskToolsMock.mockReturnValue([
+    buildEntryToolsMock.mockReturnValue([
       { name: 'mock', description: '', execute: vi.fn(), parameters: undefined },
     ]);
   });
@@ -59,6 +59,7 @@ describe('createSideContextServer', () => {
       instructions: expect.stringMatching(/side-context-mcp/i),
     });
 
+    expect(buildEntryToolsMock).toHaveBeenCalledTimes(1);
     expect(addToolsMock).toHaveBeenCalledWith([
       { name: 'mock', description: '', execute: expect.any(Function), parameters: undefined },
     ]);
