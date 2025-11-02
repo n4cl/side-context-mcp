@@ -70,6 +70,10 @@ const parseArguments = (argv: string[]): ParsedArguments => {
       continue;
     }
 
+    if (token === undefined) {
+      throw new CliError('引数の解析に失敗しました。');
+    }
+
     if (token === '--json') {
       global.json = true;
       continue;
@@ -187,8 +191,9 @@ const handleCreateCommand = async (
 
   let inputs: CreateEntryInput[];
 
-  if (filePath) {
-    const data = await readJsonFile<unknown>(filePath);
+  if (typeof filePath === 'string') {
+    const sourcePath = filePath;
+    const data = await readJsonFile<unknown>(sourcePath);
     if (!Array.isArray(data)) {
       throw new CliError('--file で指定した JSON が配列ではありません。');
     }
@@ -203,9 +208,12 @@ const handleCreateCommand = async (
         throw new CliError('エントリに title が含まれていません。');
       }
 
+      const titleValue = payload.title as string;
+      const noteValue = typeof payload.note === 'string' ? payload.note : undefined;
+
       return {
-        title: payload.title,
-        note: typeof payload.note === 'string' ? payload.note : undefined,
+        title: titleValue,
+        note: noteValue,
       } satisfies CreateEntryInput;
     });
   } else {
@@ -231,14 +239,28 @@ const formatTable = (rows: string[][]): string => {
     return '（エントリがありません）';
   }
 
-  const widths = rows[0].map((_, column) =>
-    Math.max(...rows.map((row) => row[column].length)),
+  const header = rows[0];
+  if (header === undefined) {
+    return '（エントリがありません）';
+  }
+
+  const widths = header.map((_, column) =>
+    Math.max(
+      ...rows.map((row) => {
+        const cell = row[column];
+        return cell !== undefined ? cell.length : 0;
+      }),
+    ),
   );
 
   return rows
     .map((row) =>
       row
-        .map((cell, index) => cell.padEnd(widths[index]))
+        .map((cellValue, index) => {
+          const cell = cellValue ?? '';
+          const width = widths[index] ?? 0;
+          return cell.padEnd(width);
+        })
         .join(' | '),
     )
     .join('\n');
@@ -362,12 +384,16 @@ const handleUpdateCommand = async (
     throw new CliError('update には entryId を指定してください。');
   }
 
-  const updates: UpdateEntryInput = {};
+  let note: string | undefined;
+  let status: UpdateEntryInput['status'] | undefined;
 
   for (let index = 0; index < rest.length; index += 1) {
     const token = rest[index];
+    if (token === undefined) {
+      throw new CliError('update コマンドのパラメータが不正です。');
+    }
     if (token === '--note') {
-      updates.note = rest[index + 1] ?? '';
+      note = rest[index + 1] ?? '';
       index += 1;
       continue;
     }
@@ -377,7 +403,7 @@ const handleUpdateCommand = async (
       if (value !== 'todo' && value !== 'doing' && value !== 'done') {
         throw new CliError('--status には "todo" / "doing" / "done" のいずれかを指定してください。');
       }
-      updates.status = value;
+      status = value;
       index += 1;
       continue;
     }
@@ -385,11 +411,16 @@ const handleUpdateCommand = async (
     throw new CliError(`update コマンドで不明なオプションです: ${token}`);
   }
 
-  if (updates.note === undefined && updates.status === undefined) {
+  if (note === undefined && status === undefined) {
     throw new CliError('note か status のいずれかを指定してください。');
   }
 
-  const record = await updateEntryRecord(entryId, updates);
+  const updatePayload: UpdateEntryInput = {
+    ...(note !== undefined ? { note } : {}),
+    ...(status !== undefined ? { status } : {}),
+  };
+
+  const record = await updateEntryRecord(entryId, updatePayload);
 
   if (global.json) {
     logJson(record);
@@ -407,11 +438,15 @@ const handleDeleteCommand = async (
 
   for (let index = 0; index < args.length; index += 1) {
     const token = args[index];
+    if (token === undefined) {
+      throw new CliError('delete コマンドのパラメータが不正です。');
+    }
     if (token === '--file') {
-      filePath = args[index + 1];
-      if (!filePath) {
+      const next = args[index + 1];
+      if (!next) {
         throw new CliError('--file の引数が不足しています。');
       }
+      filePath = next;
       index += 1;
       continue;
     }
@@ -423,8 +458,9 @@ const handleDeleteCommand = async (
     entryIds.push(token);
   }
 
-  if (filePath) {
-    const data = await readJsonFile<unknown>(filePath);
+  if (typeof filePath === 'string') {
+    const sourcePath = filePath;
+    const data = await readJsonFile<unknown>(sourcePath);
     if (!Array.isArray(data)) {
       throw new CliError('--file で指定した JSON が配列ではありません。');
     }
@@ -536,4 +572,3 @@ if (isExecutedDirectly()) {
     handleError(error);
   });
 }
-

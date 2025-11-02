@@ -14,7 +14,7 @@ describe('cli server command', () => {
     vi.restoreAllMocks();
   });
 
-  it('起動引数なしで server コマンドを呼び出す', async () => {
+  it('起動引数なしで server を実行する', async () => {
     const startMock = vi.fn();
 
     vi.doMock('../../src/mcp/cli.js', () => ({
@@ -22,13 +22,12 @@ describe('cli server command', () => {
     }));
 
     const { runCli } = await importCli();
-
     await runCli({ argv: [] });
 
     expect(startMock).toHaveBeenCalledWith({ transportType: 'stdio' });
   });
 
-  it('transport オプションを指定して server を起動する', async () => {
+  it('transport オプションを指定した server 実行', async () => {
     const startMock = vi.fn();
 
     vi.doMock('../../src/mcp/cli.js', () => ({
@@ -36,7 +35,6 @@ describe('cli server command', () => {
     }));
 
     const { runCli } = await importCli();
-
     await runCli({ argv: ['server', '--transport', 'httpStream'] });
 
     expect(startMock).toHaveBeenCalledWith({ transportType: 'httpStream' });

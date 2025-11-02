@@ -34,7 +34,7 @@ describe('cli entry commands', () => {
   let tempDir: string;
 
   beforeEach(async () => {
-    tempDir = await fs.mkdtemp(path.join(os.tmpdir(), 'cli-test-'));
+    tempDir = await fs.mkdtemp(path.join(os.tmpdir(), 'side-context-cli-'));
     process.env[SIDE_CONTEXT_HOME_ENV] = tempDir;
   });
 
@@ -44,17 +44,20 @@ describe('cli entry commands', () => {
     vi.restoreAllMocks();
   });
 
-  it('create コマンドで単一エントリを作成し list で取得できる', async () => {
-    const consoleCapture = captureConsole();
+  it('create → list でエントリを確認できる', async () => {
     const { runCli } = await importCli();
 
     await runCli({ argv: ['create', '--title', 'CLI 作成テスト', '--note', 'note'] });
 
-    // list コマンドで確認
-    await runCli({ argv: ['list', '--format', 'json'] });
+    const capture = captureConsole();
+    await runCli({ argv: ['--json', 'list'] });
 
-    expect(consoleCapture.logs.pop()).toContain('CLI 作成テスト');
-    consoleCapture.restore();
+    const output = capture.logs.at(-1);
+    capture.restore();
+
+    expect(output).toBeDefined();
+    const parsed = JSON.parse(output ?? '[]') as Array<{ title: string }>;
+    expect(parsed[0]?.title).toBe('CLI 作成テスト');
   });
 
   it('active set/show/clear でアクティブエントリを切り替える', async () => {
@@ -62,16 +65,22 @@ describe('cli entry commands', () => {
 
     await runCli({ argv: ['create', '--title', 'アクティブ対象'] });
 
-    const entriesPath = path.join(tempDir, 'entries');
-    const files = await fs.readdir(entriesPath);
-    const entryId = files[0].replace(/\.json$/u, '');
+    const entriesDir = path.join(tempDir, 'entries');
+    const files = await fs.readdir(entriesDir);
+    const entryId = files[0]?.replace(/\.json$/u, '');
+    expect(entryId).toBeDefined();
 
-    await runCli({ argv: ['active', 'set', entryId] });
+    await runCli({ argv: ['active', 'set', entryId ?? ''] });
 
     const capture = captureConsole();
-    await runCli({ argv: ['active', 'show', '--json'] });
-    expect(capture.logs.pop()).toContain(entryId);
+    await runCli({ argv: ['--json', 'active', 'show'] });
+
+    const output = capture.logs.at(-1);
     capture.restore();
+
+    expect(output).toBeDefined();
+    const parsed = JSON.parse(output ?? 'null') as { entryId?: string } | null;
+    expect(parsed?.entryId).toBe(entryId);
 
     await runCli({ argv: ['active', 'clear'] });
 

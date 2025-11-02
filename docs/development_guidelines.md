@@ -7,7 +7,7 @@
 - **使用言語**: TypeScript 5.9 以上。ターゲットは `ES2023`、トランスパイルは Node.js 24.x（Active LTS）を前提にする。
 - **モジュールシステム**: ESM を既定（`"type": "module"`）。CommonJS を使う場合は個別に理由を残す。
 - **依存管理**: `pnpm` を使用する。新規パッケージの追加は `pnpm add <pkg>`、開発依存は `pnpm add -D <pkg>` で lockfile を更新する。
-- **ビルド / 実行**: `tsc --noEmit` で型検査し、ランタイム実行は `tsx` もしくは `node --loader ts-node/esm` のどちらかに統一する。
+- **ビルド / 実行**: `tsc --noEmit` で型検査し、ランタイム実行は `tsx` もしくは `node --loader ts-node/esm` のどちらかに統一する。実装を終えたら必ず `pnpm build` を実行し、トランスパイルエラーが無いことを確認する。
 
 ## 実装のワークフロー (テスト駆動開発を採用)
 1. 実装対象の期待振る舞いを `tests/` 配下の `*.test.ts` で `vitest` を用いて定義し、先にテストを追加する（コードより先にテストを書く）。

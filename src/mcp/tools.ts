@@ -149,13 +149,10 @@ export const buildEntryTools = (): MCPTool[] => {
         status?: UpdateEntryInput['status'];
       };
 
-      const updatePayload: UpdateEntryInput = {};
-      if (parsed.note !== undefined) {
-        updatePayload.note = parsed.note;
-      }
-      if (parsed.status !== undefined) {
-        updatePayload.status = parsed.status;
-      }
+      const updatePayload: UpdateEntryInput = {
+        ...(parsed.note !== undefined ? { note: parsed.note } : {}),
+        ...(parsed.status !== undefined ? { status: parsed.status } : {}),
+      };
 
       try {
         const record = await updateEntryRecord(parsed.entryId, updatePayload);
