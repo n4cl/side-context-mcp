@@ -34,6 +34,45 @@ side-context-mcp (WIP)
 
 詳しい仕様は `docs/system_design.md` を参照してください。
 
+## インストールと実行
+
+1. 依存関係のインストール
+
+   ```bash
+   pnpm install
+   ```
+
+2. TypeScript のビルド
+
+   ```bash
+   pnpm build
+   ```
+
+3. CLI の実行
+
+   ビルド後はリポジトリ直下で以下のように実行できます。
+
+   ```bash
+   node dist/bin/side-context-mcp.js <command> [options]
+   ```
+
+## Codex への登録例
+
+Codex の `config.toml` に以下のようなエントリを追加すると、MCP サーバーとして利用できます。パスは環境に合わせて `~/side-context-mcp/dist/bin/side-context-mcp.js` のように書き換えてください。
+
+```toml
+[mcp_servers.side_context]
+command = "node"
+args = [
+  "/path/to/side-context-mcp/dist/bin/side-context-mcp.js",
+  "server"
+]
+# データ保存先を変えたい場合は環境変数で指定できます
+# env = { SIDE_CONTEXT_MCP_HOME = "/path/to/storage" }
+```
+
+Codex を再起動すると `side_context` サーバーとして登録され、`createEntries` や `listEntries` などのツールを呼び出せるようになります。
+
 ## CLI の使い方
 
 `side-context-mcp` はサーバー起動に加えて、サブコマンドでストレージ操作を行えます。
