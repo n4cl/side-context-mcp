@@ -34,6 +34,41 @@ side-context-mcp (WIP)
 
 詳しい仕様は `docs/system_design.md` を参照してください。
 
+## CLI の使い方
+
+`side-context-mcp` はサーバー起動に加えて、サブコマンドでストレージ操作を行えます。
+
+```
+# 既定のサーバー起動（従来通り）
+side-context-mcp
+
+# サーバーを明示的に起動
+side-context-mcp server --transport stdio
+
+# やることエントリを追加
+side-context-mcp create --title "朝会メモ" --note "共有事項を追記する"
+
+# 一覧表示（完了済みを含める）
+side-context-mcp list --include-done --format table
+
+# アクティブエントリの切り替えと確認
+side-context-mcp active set entry_00012
+side-context-mcp active show
+
+# メモ＆ステータス更新
+side-context-mcp update entry_00012 --note "レビュー待ち" --status doing
+
+# エントリ削除
+side-context-mcp delete entry_00010 entry_00011
+```
+
+共通オプション:
+
+- `--home <path>`: `SIDE_CONTEXT_MCP_HOME` を上書きします。
+- `--json`: 出力形式を JSON 固定にします（`list` や `active show` など）。
+
+CLI は `SIDE_CONTEXT_MCP_HOME` を参照し、未設定の場合は `~/.side-context-mcp` を利用します。
+
 ## 環境変数
 
 - `SIDE_CONTEXT_MCP_HOME`

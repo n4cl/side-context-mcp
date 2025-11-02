@@ -163,6 +163,8 @@ Last Updated: 2025-10-29T10:20:00+09:00
 
 ## 9. CLI 設計概要
 
+CLI サブコマンドは以下の方針で実装済み。サーバー起動に加えて、やることエントリの作成・閲覧・更新・削除・アクティブ切り替えを CLI 経由で操作できる。
+
 - **entry server**
   - 既定の挙動はサーバー起動。`side-context-mcp`（引数なし）と `side-context-mcp server` のどちらでも stdio で MCP サーバーを開始できる。
   - オプション: `--transport stdio|httpStream`。
