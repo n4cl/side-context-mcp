@@ -111,17 +111,18 @@ describe('buildEntryTools', () => {
     }
   });
 
-  it('createEntries・listEntries・getActiveEntry・setActiveEntry・deleteEntries 以外のツールは未実装エラーを投げる', async () => {
+  it('createEntries・setActiveEntry・getActiveEntry・deleteEntries・updateEntry・listEntries 以外のツールは未実装エラーを投げる', async () => {
     const tools = buildEntryTools();
     const context = createContextStub();
 
     for (const tool of tools.filter(({ name }) =>
       ![
         'createEntries',
-        'listEntries',
-        'getActiveEntry',
         'setActiveEntry',
+        'getActiveEntry',
         'deleteEntries',
+        'updateEntry',
+        'listEntries',
       ].includes(name),
     )) {
       await expect(tool.execute({} as never, context)).rejects.toBeInstanceOf(
@@ -221,6 +222,63 @@ describe('buildEntryTools', () => {
     const activeResult = await getActiveEntry!.execute({}, context);
     const activeParsed = JSON.parse(activeResult as string);
     expect(activeParsed).toBeNull();
+  });
+
+  it('updateEntry が note と status を更新する', async () => {
+    const tools = buildEntryTools();
+    const context = createContextStub();
+    const createEntries = tools.find(({ name }) => name === 'createEntries');
+    const setActiveEntry = tools.find(({ name }) => name === 'setActiveEntry');
+    const updateEntry = tools.find(({ name }) => name === 'updateEntry');
+
+    expect(createEntries).toBeDefined();
+    expect(setActiveEntry).toBeDefined();
+    expect(updateEntry).toBeDefined();
+
+    const { entryIds } = JSON.parse(
+      (await createEntries!.execute(
+        { entries: [{ title: '更新テスト', note: 'before memo' }] },
+        context,
+      )) as string,
+    ) as { entryIds: string[] };
+
+    await setActiveEntry!.execute({ entryId: entryIds[0] }, context);
+
+    const response = await updateEntry!.execute(
+      { entryId: entryIds[0], note: 'after memo', status: 'doing' },
+      context,
+    );
+
+    const parsed = JSON.parse(response as string) as {
+      entryId: string;
+      note: string;
+      status: string;
+    };
+
+    expect(parsed).toMatchObject({
+      entryId: entryIds[0],
+      note: 'after memo',
+      status: 'doing',
+    });
+
+    const viewContent = await fs.readFile(
+      path.join(tempDir, 'views', 'active-entry.md'),
+      'utf8',
+    );
+    expect(viewContent).toContain('Status: doing');
+    expect(viewContent).toContain('after memo');
+  });
+
+  it('updateEntry は存在しない ID 指定時に UserError を返す', async () => {
+    const tools = buildEntryTools();
+    const context = createContextStub();
+    const updateEntry = tools.find(({ name }) => name === 'updateEntry');
+
+    expect(updateEntry).toBeDefined();
+
+    await expect(
+      updateEntry!.execute({ entryId: 'entry_404', status: 'todo' }, context),
+    ).rejects.toBeInstanceOf(UserError);
   });
 
   it('deleteEntries が指定したエントリをまとめて削除する', async () => {

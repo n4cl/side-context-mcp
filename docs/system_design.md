@@ -116,8 +116,8 @@ Last Updated: 2025-10-29T10:20:00+09:00
 3. `getActiveEntry()`  
    - 現在のアクティブエントリを取得。存在しない場合は `null`。
 
-4. `updateEntry(entryId, { title?, note?, status? })`  
-   - 指定エントリのフィールドを更新。複数項目を同時更新可能。
+4. `updateEntry(entryId, { note?, status? })`  
+   - メモとステータスのみを更新する。`note: ""` を渡すとメモを削除した状態に戻せる。
    - 返却: 更新後の `EntryRecord`
 
 5. `listEntries()`  
@@ -141,6 +141,7 @@ Last Updated: 2025-10-29T10:20:00+09:00
 - 表示テンプレートは固定化しておき、空の `note` は `(none)` と表示する。
 - 将来的に複数ビュー（一覧など）が必要になった場合は `views/` 内に追加する。
 - 削除処理でアクティブエントリが無効になった際も `(none)` 表示に切り替える。
+- `updateEntry` でアクティブエントリの `note` や `status` が変わった場合もビューを更新する。
 
 
 ## 7. 運用イメージ

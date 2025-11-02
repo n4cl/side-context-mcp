@@ -4,7 +4,9 @@ import {
   createEntryRecords,
   deleteEntryRecords,
   listEntrySummaries,
+  updateEntryRecord,
   type CreateEntryInput,
+  type UpdateEntryInput,
 } from './storage/entryRepository.js';
 import {
   getActiveEntryRecord,
@@ -50,6 +52,17 @@ const setActiveEntryParameters = z.object({
 const deleteEntriesParameters = z.object({
   entryIds: z.array(z.string().min(1)).min(1),
 });
+
+const updateEntryParameters = z
+  .object({
+    entryId: z.string().min(1),
+    note: z.string().optional(),
+    status: z.enum(['todo', 'doing', 'done']).optional(),
+  })
+  .refine((value) => value.note !== undefined || value.status !== undefined, {
+    message: 'note か status のいずれかを指定してください。',
+    path: ['note'],
+  });
 
 /**
  * やることエントリを扱う MCP ツール群を組み立てる。
@@ -125,6 +138,44 @@ export const buildEntryTools = (): MCPTool[] => {
     },
   };
 
+  const updateEntryTool: MCPTool = {
+    name: 'updateEntry',
+    description: 'やることエントリのメモやステータスを更新する。',
+    parameters: castSchema(updateEntryParameters),
+    execute: async (args) => {
+      const parsed = updateEntryParameters.parse(args) as {
+        entryId: string;
+        note?: string;
+        status?: UpdateEntryInput['status'];
+      };
+
+      const updatePayload: UpdateEntryInput = {};
+      if (parsed.note !== undefined) {
+        updatePayload.note = parsed.note;
+      }
+      if (parsed.status !== undefined) {
+        updatePayload.status = parsed.status;
+      }
+
+      try {
+        const record = await updateEntryRecord(parsed.entryId, updatePayload);
+        return JSON.stringify(record);
+      } catch (error: unknown) {
+        if (error instanceof Error) {
+          if (/entry not found/i.test(error.message)) {
+            throw new UserError('指定したエントリが存在しません。');
+          }
+
+          if (/updates must include note or status/i.test(error.message)) {
+            throw new UserError('note か status のいずれかを指定してください。');
+          }
+        }
+
+        throw error;
+      }
+    },
+  };
+
   const listEntriesTool: MCPTool = {
     name: 'listEntries',
     description: '登録済みのやることエントリを取得する。',
@@ -149,10 +200,7 @@ export const buildEntryTools = (): MCPTool[] => {
     setActiveEntryTool,
     getActiveEntryTool,
     deleteEntriesTool,
-    createPlaceholderTool(
-      'updateEntry',
-      'エントリの内容やステータスを更新する（未実装）。',
-    ),
+    updateEntryTool,
     listEntriesTool,
   ];
 };

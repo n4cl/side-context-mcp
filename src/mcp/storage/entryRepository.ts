@@ -18,6 +18,11 @@ export interface CreateEntryInput {
   readonly note?: string | undefined;
 }
 
+export interface UpdateEntryInput {
+  readonly note?: string | undefined;
+  readonly status?: EntryStatus | undefined;
+}
+
 const formatEntryId = (sequence: number): string => {
   return `${ENTRY_PREFIX}${sequence.toString().padStart(5, '0')}`;
 };
@@ -145,6 +150,48 @@ export const deleteEntryRecords = async (
   }
 
   return uniqueIds;
+};
+
+/**
+ * エントリのメモやステータスを更新する。
+ */
+export const updateEntryRecord = async (
+  entryId: string,
+  updates: UpdateEntryInput,
+): Promise<EntryRecord> => {
+  if (updates.note === undefined && updates.status === undefined) {
+    throw new Error('updates must include note or status');
+  }
+
+  const entriesDir = resolveEntriesDir();
+  const filePath = path.join(entriesDir, `${entryId}${ENTRY_EXTENSION}`);
+
+  let current: EntryRecord;
+  try {
+    const raw = await fs.readFile(filePath, 'utf8');
+    current = JSON.parse(raw) as EntryRecord;
+  } catch (error: unknown) {
+    if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
+      throw new Error(`entry not found: ${entryId}`);
+    }
+    throw error;
+  }
+
+  const updated: EntryRecord = {
+    ...current,
+    note: updates.note !== undefined ? updates.note : current.note,
+    status: updates.status ?? current.status,
+    updatedAt: new Date().toISOString(),
+  };
+
+  await writeEntryRecord(filePath, updated);
+
+  const activeId = await getActiveEntryId();
+  if (activeId === entryId) {
+    await setActiveEntryRecord(entryId);
+  }
+
+  return updated;
 };
 
 export type EntrySummary = Pick<
