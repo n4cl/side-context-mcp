@@ -5,6 +5,10 @@ import {
   listEntrySummaries,
   type CreateEntryInput,
 } from './storage/entryRepository.js';
+import {
+  getActiveEntryRecord,
+  setActiveEntryRecord,
+} from './storage/activeEntryRepository.js';
 
 const notImplemented = async (): Promise<never> => {
   throw new UserError('Not implemented');
@@ -38,6 +42,10 @@ const createPlaceholderTool = (name: string, description: string): MCPTool => {
   };
 };
 
+const setActiveEntryParameters = z.object({
+  entryId: z.union([z.string().min(1), z.null()]),
+});
+
 /**
  * やることエントリを扱う MCP ツール群を組み立てる。
  * 現状は `createEntries` と `listEntries` を提供し、残りはプレースホルダー。
@@ -56,6 +64,37 @@ export const buildEntryTools = (): MCPTool[] => {
       return JSON.stringify({
         entryIds: records.map(({ entryId }) => entryId),
       });
+    },
+  };
+
+  const setActiveEntryTool: MCPTool = {
+    name: 'setActiveEntry',
+    description: 'アクティブなエントリを切り替える。',
+    parameters: castSchema(setActiveEntryParameters),
+    execute: async (args) => {
+      const parsed = setActiveEntryParameters.parse(args) as {
+        entryId: string | null;
+      };
+
+      try {
+        const record = await setActiveEntryRecord(parsed.entryId);
+        return JSON.stringify(record);
+      } catch (error: unknown) {
+        if (error instanceof Error && /entry not found/i.test(error.message)) {
+          throw new UserError('指定したエントリが存在しません。');
+        }
+
+        throw error;
+      }
+    },
+  };
+
+  const getActiveEntryTool: MCPTool = {
+    name: 'getActiveEntry',
+    description: 'アクティブなやることエントリを取得する。',
+    execute: async () => {
+      const record = await getActiveEntryRecord();
+      return JSON.stringify(record);
     },
   };
 
@@ -80,14 +119,8 @@ export const buildEntryTools = (): MCPTool[] => {
 
   return [
     createEntriesTool,
-    createPlaceholderTool(
-      'setActiveEntry',
-      'アクティブなエントリを切り替える（未実装）。',
-    ),
-    createPlaceholderTool(
-      'getActiveEntry',
-      '現在アクティブなエントリを取得する（未実装）。',
-    ),
+    setActiveEntryTool,
+    getActiveEntryTool,
     createPlaceholderTool(
       'updateEntry',
       'エントリの内容やステータスを更新する（未実装）。',

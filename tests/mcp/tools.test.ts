@@ -110,17 +110,164 @@ describe('buildEntryTools', () => {
     }
   });
 
-  it('createEntries 以外のツールは未実装エラーを投げる', async () => {
+  it('createEntries・listEntries・getActiveEntry 以外のツールは未実装エラーを投げる', async () => {
     const tools = buildEntryTools();
     const context = createContextStub();
 
     for (const tool of tools.filter(({ name }) =>
-      !['createEntries', 'listEntries'].includes(name),
+      !['createEntries', 'listEntries', 'getActiveEntry', 'setActiveEntry'].includes(name),
     )) {
       await expect(tool.execute({} as never, context)).rejects.toBeInstanceOf(
         UserError,
       );
     }
+  });
+
+  it('setActiveEntry が指定エントリをアクティブにする', async () => {
+    const tools = buildEntryTools();
+    const context = createContextStub();
+    const createEntries = tools.find(({ name }) => name === 'createEntries');
+    const setActiveEntry = tools.find(({ name }) => name === 'setActiveEntry');
+    const getActiveEntry = tools.find(({ name }) => name === 'getActiveEntry');
+
+    expect(createEntries).toBeDefined();
+    expect(setActiveEntry).toBeDefined();
+    expect(getActiveEntry).toBeDefined();
+
+    const { entryIds } = JSON.parse(
+      (await createEntries!.execute(
+        {
+          entries: [
+            { title: 'アクティブ切替テスト', note: 'ビュー生成の確認' },
+          ],
+        },
+        context,
+      )) as string,
+    ) as { entryIds: string[] };
+
+    const response = await setActiveEntry!.execute(
+      { entryId: entryIds[0] },
+      context,
+    );
+
+    const parsed = JSON.parse(response as string) as {
+      entryId: string;
+      title: string;
+    };
+
+    expect(parsed.entryId).toBe(entryIds[0]);
+    expect(parsed.title).toBe('アクティブ切替テスト');
+
+    const activeFile = path.join(tempDir, 'active.json');
+    const activeJson = JSON.parse(await fs.readFile(activeFile, 'utf8')) as {
+      entryId: string;
+    };
+
+    expect(activeJson.entryId).toBe(entryIds[0]);
+
+    const activeResult = await getActiveEntry!.execute({}, context);
+    const activeParsed = JSON.parse(activeResult as string) as Record<string, unknown> | null;
+    expect(activeParsed).not.toBeNull();
+    expect(activeParsed).toMatchObject({ entryId: entryIds[0] });
+
+    const viewContent = await fs.readFile(
+      path.join(tempDir, 'views', 'active-entry.md'),
+      'utf8',
+    );
+    expect(viewContent).toContain('アクティブ切替テスト');
+    expect(viewContent).toContain('ビュー生成の確認');
+  });
+
+  it('setActiveEntry に null を渡すとアクティブが解除される', async () => {
+    const tools = buildEntryTools();
+    const context = createContextStub();
+    const createEntries = tools.find(({ name }) => name === 'createEntries');
+    const setActiveEntry = tools.find(({ name }) => name === 'setActiveEntry');
+    const getActiveEntry = tools.find(({ name }) => name === 'getActiveEntry');
+
+    expect(createEntries).toBeDefined();
+    expect(setActiveEntry).toBeDefined();
+    expect(getActiveEntry).toBeDefined();
+
+    const { entryIds } = JSON.parse(
+      (await createEntries!.execute(
+        { entries: [{ title: '解除前の確認' }] },
+        context,
+      )) as string,
+    ) as { entryIds: string[] };
+
+    await setActiveEntry!.execute({ entryId: entryIds[0] }, context);
+
+    const response = await setActiveEntry!.execute({ entryId: null }, context);
+    const parsed = JSON.parse(response as string);
+    expect(parsed).toBeNull();
+
+    await expect(fs.readFile(path.join(tempDir, 'active.json'), 'utf8')).rejects.toThrow();
+
+    const viewContent = await fs.readFile(
+      path.join(tempDir, 'views', 'active-entry.md'),
+      'utf8',
+    );
+    expect(viewContent).toContain('Active Entry: (none)');
+    expect(viewContent).toContain('アクティブなエントリは設定されていません。');
+
+    const activeResult = await getActiveEntry!.execute({}, context);
+    const activeParsed = JSON.parse(activeResult as string);
+    expect(activeParsed).toBeNull();
+  });
+
+  it('getActiveEntry がアクティブエントリを返す', async () => {
+    const tools = buildEntryTools();
+    const context = createContextStub();
+    const createEntries = tools.find(({ name }) => name === 'createEntries');
+    const getActiveEntry = tools.find(({ name }) => name === 'getActiveEntry');
+
+    expect(createEntries).toBeDefined();
+    expect(getActiveEntry).toBeDefined();
+
+    const { entryIds } = JSON.parse(
+      (await createEntries!.execute(
+        { entries: [{ title: 'アクティブ候補' }] },
+        context,
+      )) as string,
+    ) as { entryIds: string[] };
+
+    const entriesDir = path.join(tempDir, 'entries');
+    const targetPath = path.join(entriesDir, `${entryIds[0]}.json`);
+    const record = JSON.parse(await fs.readFile(targetPath, 'utf8')) as Record<string, unknown>;
+
+    const activeFile = path.join(tempDir, 'active.json');
+    await fs.writeFile(
+      activeFile,
+      `${JSON.stringify(
+        { entryId: record.entryId, updatedAt: record.updatedAt },
+        null,
+        2,
+      )}\n`,
+      'utf8',
+    );
+
+    const result = await getActiveEntry!.execute({}, context);
+    const parsed = JSON.parse(result as string) as Record<string, unknown> | null;
+
+    expect(parsed).not.toBeNull();
+    expect(parsed).toMatchObject({
+      entryId: record.entryId,
+      title: 'アクティブ候補',
+    });
+  });
+
+  it('getActiveEntry はアクティブ未設定時に null を返す', async () => {
+    const tools = buildEntryTools();
+    const context = createContextStub();
+    const getActiveEntry = tools.find(({ name }) => name === 'getActiveEntry');
+
+    expect(getActiveEntry).toBeDefined();
+
+    const result = await getActiveEntry!.execute({}, context);
+    const parsed = JSON.parse(result as string);
+
+    expect(parsed).toBeNull();
   });
 
   it('listEntries が保存済みエントリを返す', async () => {
