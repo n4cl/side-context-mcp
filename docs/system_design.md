@@ -100,36 +100,20 @@ Last Updated: 2025-10-29T10:20:00+09:00
 - アクティブエントリの `title` / `note` / `status` を更新したとき
 
 
-## 5. MCP API（暫定案）
+## 5. MCP API
 
 新しいやることメモモデルに合わせ、以下の操作を提供する想定。
 
-1. `createEntries(entries)`  
-   - 入力: `entries: Array<{ title: string; note?: string }>`
-   - 挙動: まとめてエントリを作成。`note` 未指定時は空文字、`status` は `todo` で初期化。
-   - 返却: `{ entryIds: string[] }`
+1. `createEntries(entries)`  — やることエントリをまとめて登録する。
+2. `setActiveEntry(entryId | null)`  — アクティブエントリを切り替える。
+3. `getActiveEntry()` — 現在のアクティブエントリを参照する。
+4. `updateEntry(entryId, { note?, status? })` — メモとステータスを更新する。
+5. `listEntries()` — エントリ一覧を軽量サマリーで取得する。
+6. `deleteEntries(entryIds)` — 指定したエントリをまとめて削除する。
 
-2. `setActiveEntry(entryId | null)`  
-   - アクティブエントリを切り替える。`null` で解除。
-   - 返却: `EntryRecord | null`
+各ツールの詳細仕様は「10. MCP ツール詳細」を参照。
 
-3. `getActiveEntry()`  
-   - 現在のアクティブエントリを取得。存在しない場合は `null`。
-
-4. `updateEntry(entryId, { note?, status? })`  
-   - メモとステータスのみを更新する。`note: ""` を渡すとメモを削除した状態に戻せる。
-   - 返却: 更新後の `EntryRecord`
-
-5. `listEntries()`  
-   - すべてのエントリを軽量表示で返す。例: `{ entryId, title, status, updatedAt }`
-   - フィルタ（`status` や文字列検索）は将来拡張とする。
-
-6. `deleteEntries(entryIds)`  
-   - 入力: `entryIds: string[]`
-   - 挙動: 指定した ID のエントリをまとめて削除。存在しない ID は明示的にエラーとし、クライアント側でリトライ可能にする。
-   - 副作用: アクティブエントリが削除対象に含まれている場合はアクティブ状態を解除し、ビューを `(none)` 表示に更新する。
-
-7. （任意）`archiveEntry(entryId)`  
+7. （暫定）`archiveEntry(entryId)`
    - ニーズがあれば検討。初期実装では未対応でもよい。
 
 既存の複雑なタスク API（ブロッカー管理、PR 連携など）は撤廃する。
@@ -195,19 +179,52 @@ CLI サブコマンドは以下の方針で実装済み。サーバー起動に�
   - `--json` を指定すると各サブコマンドの出力を JSON 固定にする。
   - コマンドエラー時は `process.exitCode = 1` をセットし、メッセージを stderr に出力する。
 
-## 10. 削除機能の設計詳細
+## 10. MCP ツール詳細
 
-- **目的**: 誤登録や不要になったエントリをまとめて消す運用を想定し、ツールから一括削除できるようにする。
-- **API 入力**: `deleteEntries({ entryIds: string[] })`。配列は 1 件以上必須とし、重複 ID は事前に正規化する。
-- **削除アルゴリズム**:
-  1. `entries/` 配下の対象ファイルを確認し、存在しない ID があれば処理を中断して `UserError` を返す。
-  2. すべて存在する場合のみ、一時ファイルを介さず `fs.rm` で削除する（ディスク容量節約目的）。
-  3. 削除対象にアクティブ ID が含まれていれば `setActiveEntryRecord(null)` を呼び出し、ビューを `(none)` 状態に更新する。
-- **戻り値**: `{ deletedEntryIds: string[] }` を JSON で返し、実際に削除した ID を明示する。
-- **エラー設計**:
-  - 存在しない ID を含む場合は `UserError` で ID を返す（例: `エントリが見つかりません: entry_00042`）。
-  - ファイル削除中の I/O 例外は再スローし、クライアント側でリトライ可能にする。
-- **テスト観点**:
-  - 正常系: 複数エントリ削除 + アクティブ状態解除 + ビュー `(none)` 表示の検証。
-  - 異常系: 存在しない ID / 空配列入力 / アクティブが残るケースなど。
-  - 連番採番への影響はなく、削除後に `createEntries` を実行しても既存の最大値 + 1 から継続する。
+### 10.1 `createEntries`
+
+- **目的**: 1 回の呼び出しで複数のやることエントリを登録する。
+- **入力**: `entries: Array<{ title: string; note?: string }>`。`title` は 1 行メモ、`note` は任意の補足テキスト。
+- **処理**: `entries/` ディレクトリに JSON を生成し、`status = "todo"`、`note` 未指定時は空文字で保存する。
+- **戻り値**: `{ entryIds: string[] }`。作成順に採番された ID を返す。
+- **テスト観点**: 複数件作成時の連番・既存ファイルがある場合の継続採番・空配列エラーなど。
+
+### 10.2 `setActiveEntry`
+
+- **目的**: 現在注目しているエントリを切り替え、人間向けビューを最新化する。
+- **入力**: `entryId: string | null`。文字列ならその ID をアクティブ化、`null` ならアクティブ解除。
+- **処理**: `active.json` と `views/active-entry.md` を再生成する。存在しない ID を指定した場合はエラー。
+- **戻り値**: 新しいアクティブエントリの `EntryRecord`、または解除時は `null`。
+- **テスト観点**: 有効 ID の切り替え、解除時の `(none)` 表示、存在しない ID のエラー。
+
+### 10.3 `getActiveEntry`
+
+- **目的**: 現在のアクティブエントリを参照し、エージェントが次のアクションを判断できるようにする。
+- **入力**: なし。
+- **処理**: `active.json` を読み、登録済みエントリをロードして `EntryRecord` を返す。破損・未設定時は `null`。
+- **戻り値**: `EntryRecord | null`。
+- **テスト観点**: 正常取得、アクティブ未設定時の `null`、破損ファイルのフォールバック。
+
+### 10.4 `updateEntry`
+
+- **目的**: エントリのメモとステータスを更新する。
+- **入力**: `entryId: string`、`note?: string`、`status?: "todo" | "doing" | "done"`。
+- **処理**: 指定フィールドのみを上書きし、`updatedAt` を現在時刻に更新。アクティブなエントリならビューも再生成する。
+- **戻り値**: 更新後の `EntryRecord`。
+- **テスト観点**: note の上書き・空文字削除、status 変更、存在しない ID のエラー、アクティブビューの更新。
+
+### 10.5 `listEntries`
+
+- **目的**: エージェントが現状のタスク状況を把握しやすいように一覧を返す。
+- **入力**: `includeDone?: boolean`。既定は `false` で `todo` / `doing` のみを返す。
+- **処理**: `entries/` 以下の JSON を読み、軽量サマリー `{ entryId, title, status, updatedAt }` に変換。
+- **戻り値**: サマリー配列。エントリがなければ空配列。
+- **テスト観点**: 通常取得、空ストレージの挙動、`includeDone: true` での完了エントリ含め確認。
+
+### 10.6 `deleteEntries`
+
+- **目的**: 不要なエントリをまとめて削除し、アクティブ状態も整合させる。
+- **入力**: `entryIds: string[]`。1 件以上必須で、重複があれば内部で除去。
+- **処理**: 指定 ID のファイル存在を確認し、なければ `UserError`。正常時はファイル削除後、削除対象にアクティブ ID があれば `setActiveEntry(null)` を呼び出す。
+- **戻り値**: `{ deletedEntryIds: string[] }`。実際に削除した ID を列挙。
+- **テスト観点**: 正常削除、アクティブ解除の確認、存在しない ID / 空配列時のエラー、採番への影響確認。

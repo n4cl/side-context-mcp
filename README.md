@@ -1,4 +1,4 @@
-side-context-mcp (WIP)
+side-context-mcp
 ===
 
 ローカル開発中の「やることメモ」を、LLMエージェントと人間の両方で安全に共有するための小さなコンテキストサーバー。
