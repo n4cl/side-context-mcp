@@ -98,6 +98,11 @@ export const getActiveEntryRecord = async (): Promise<EntryRecord | null> => {
   return record;
 };
 
+export const getActiveEntryId = async (): Promise<string | null> => {
+  const snapshot = await readActiveFile();
+  return snapshot?.entryId ?? null;
+};
+
 const writeFileAtomic = async (filePath: string, content: string): Promise<void> => {
   const directory = path.dirname(filePath);
   await fs.mkdir(directory, { recursive: true });

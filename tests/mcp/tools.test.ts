@@ -49,6 +49,7 @@ describe('buildEntryTools', () => {
       'createEntries',
       'setActiveEntry',
       'getActiveEntry',
+      'deleteEntries',
       'updateEntry',
       'listEntries',
     ]);
@@ -110,12 +111,18 @@ describe('buildEntryTools', () => {
     }
   });
 
-  it('createEntries・listEntries・getActiveEntry 以外のツールは未実装エラーを投げる', async () => {
+  it('createEntries・listEntries・getActiveEntry・setActiveEntry・deleteEntries 以外のツールは未実装エラーを投げる', async () => {
     const tools = buildEntryTools();
     const context = createContextStub();
 
     for (const tool of tools.filter(({ name }) =>
-      !['createEntries', 'listEntries', 'getActiveEntry', 'setActiveEntry'].includes(name),
+      ![
+        'createEntries',
+        'listEntries',
+        'getActiveEntry',
+        'setActiveEntry',
+        'deleteEntries',
+      ].includes(name),
     )) {
       await expect(tool.execute({} as never, context)).rejects.toBeInstanceOf(
         UserError,
@@ -214,6 +221,77 @@ describe('buildEntryTools', () => {
     const activeResult = await getActiveEntry!.execute({}, context);
     const activeParsed = JSON.parse(activeResult as string);
     expect(activeParsed).toBeNull();
+  });
+
+  it('deleteEntries が指定したエントリをまとめて削除する', async () => {
+    const tools = buildEntryTools();
+    const context = createContextStub();
+    const createEntries = tools.find(({ name }) => name === 'createEntries');
+    const deleteEntries = tools.find(({ name }) => name === 'deleteEntries');
+
+    expect(createEntries).toBeDefined();
+    expect(deleteEntries).toBeDefined();
+
+    const { entryIds } = JSON.parse(
+      (await createEntries!.execute(
+        {
+          entries: [
+            { title: '削除対象A' },
+            { title: '削除対象B' },
+            { title: '残すエントリ' },
+          ],
+        },
+        context,
+      )) as string,
+    ) as { entryIds: string[] };
+
+    await fs.mkdir(path.join(tempDir, 'views'), { recursive: true });
+    const activeFile = path.join(tempDir, 'active.json');
+    await fs.writeFile(
+      activeFile,
+      `${JSON.stringify({ entryId: entryIds[0], updatedAt: new Date().toISOString() }, null, 2)}\n`,
+      'utf8',
+    );
+
+    const response = await deleteEntries!.execute(
+      { entryIds: [entryIds[0], entryIds[1]] },
+      context,
+    );
+
+    const parsed = JSON.parse(response as string) as {
+      deletedEntryIds: string[];
+    };
+
+    expect(parsed.deletedEntryIds).toEqual([entryIds[0], entryIds[1]]);
+
+    await expect(
+      fs.stat(path.join(tempDir, 'entries', `${entryIds[0]}.json`)),
+    ).rejects.toMatchObject({ code: 'ENOENT' });
+    await expect(
+      fs.stat(path.join(tempDir, 'entries', `${entryIds[1]}.json`)),
+    ).rejects.toMatchObject({ code: 'ENOENT' });
+
+    await expect(
+      fs.stat(path.join(tempDir, 'entries', `${entryIds[2]}.json`)),
+    ).resolves.toBeDefined();
+
+    const viewContent = await fs.readFile(
+      path.join(tempDir, 'views', 'active-entry.md'),
+      'utf8',
+    );
+    expect(viewContent).toContain('Active Entry: (none)');
+  });
+
+  it('deleteEntries は存在しない ID が含まれると UserError を返す', async () => {
+    const tools = buildEntryTools();
+    const context = createContextStub();
+    const deleteEntries = tools.find(({ name }) => name === 'deleteEntries');
+
+    expect(deleteEntries).toBeDefined();
+
+    await expect(
+      deleteEntries!.execute({ entryIds: ['entry_404'] }, context),
+    ).rejects.toBeInstanceOf(UserError);
   });
 
   it('getActiveEntry がアクティブエントリを返す', async () => {

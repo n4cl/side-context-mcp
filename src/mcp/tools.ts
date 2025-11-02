@@ -2,6 +2,7 @@ import { UserError, type Tool, type ToolParameters } from 'fastmcp';
 import { z } from 'zod';
 import {
   createEntryRecords,
+  deleteEntryRecords,
   listEntrySummaries,
   type CreateEntryInput,
 } from './storage/entryRepository.js';
@@ -44,6 +45,10 @@ const createPlaceholderTool = (name: string, description: string): MCPTool => {
 
 const setActiveEntryParameters = z.object({
   entryId: z.union([z.string().min(1), z.null()]),
+});
+
+const deleteEntriesParameters = z.object({
+  entryIds: z.array(z.string().min(1)).min(1),
 });
 
 /**
@@ -98,6 +103,28 @@ export const buildEntryTools = (): MCPTool[] => {
     },
   };
 
+  const deleteEntriesTool: MCPTool = {
+    name: 'deleteEntries',
+    description: 'やることエントリをまとめて削除する。',
+    parameters: castSchema(deleteEntriesParameters),
+    execute: async (args) => {
+      const parsed = deleteEntriesParameters.parse(args) as {
+        entryIds: string[];
+      };
+
+      try {
+        const deleted = await deleteEntryRecords(parsed.entryIds);
+        return JSON.stringify({ deletedEntryIds: deleted });
+      } catch (error: unknown) {
+        if (error instanceof Error && /entry not found/i.test(error.message)) {
+          throw new UserError('削除対象のエントリが見つかりません。');
+        }
+
+        throw error;
+      }
+    },
+  };
+
   const listEntriesTool: MCPTool = {
     name: 'listEntries',
     description: '登録済みのやることエントリを取得する。',
@@ -121,6 +148,7 @@ export const buildEntryTools = (): MCPTool[] => {
     createEntriesTool,
     setActiveEntryTool,
     getActiveEntryTool,
+    deleteEntriesTool,
     createPlaceholderTool(
       'updateEntry',
       'エントリの内容やステータスを更新する（未実装）。',

@@ -1,6 +1,10 @@
 import { promises as fs } from 'node:fs';
 import path from 'node:path';
 import { resolveEntriesDir } from './paths.js';
+import {
+  getActiveEntryId,
+  setActiveEntryRecord,
+} from './activeEntryRepository.js';
 import type { EntryRecord, EntryStatus } from '../types.js';
 
 const ENTRY_PREFIX = 'entry_';
@@ -96,6 +100,51 @@ export const createEntryRecords = async (
   }
 
   return records;
+};
+
+/**
+ * 指定されたエントリ ID をまとめて削除する。存在しない ID が含まれていればエラーになる。
+ */
+export const deleteEntryRecords = async (
+  entryIds: string[],
+): Promise<string[]> => {
+  if (entryIds.length === 0) {
+    throw new Error('entryIds must contain at least one id');
+  }
+
+  const uniqueIds = Array.from(new Set(entryIds));
+  const entriesDir = resolveEntriesDir();
+
+  const missing: string[] = [];
+
+  for (const entryId of uniqueIds) {
+    const filePath = path.join(entriesDir, `${entryId}${ENTRY_EXTENSION}`);
+    try {
+      await fs.stat(filePath);
+    } catch (error: unknown) {
+      if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
+        missing.push(entryId);
+      } else {
+        throw error;
+      }
+    }
+  }
+
+  if (missing.length > 0) {
+    throw new Error(`entry not found: ${missing.join(', ')}`);
+  }
+
+  for (const entryId of uniqueIds) {
+    const filePath = path.join(entriesDir, `${entryId}${ENTRY_EXTENSION}`);
+    await fs.rm(filePath, { force: true });
+  }
+
+  const activeId = await getActiveEntryId();
+  if (activeId && uniqueIds.includes(activeId)) {
+    await setActiveEntryRecord(null);
+  }
+
+  return uniqueIds;
 };
 
 export type EntrySummary = Pick<
