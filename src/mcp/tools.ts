@@ -71,7 +71,9 @@ const updateEntryParameters = z
 export const buildEntryTools = (): MCPTool[] => {
   const createEntriesTool: MCPTool = {
     name: 'createEntries',
-    description: 'エントリ（やることメモ）をまとめて追加する。',
+    description: `複数のやることエントリを一括登録する。
+引数 entries は { title: string, note?: string } の配列で、title には1 行程度の要約、note には補足メモを指定する。
+note を省略した場合は空文字で保存され、作成済みエントリの entryId を配列で返す。`,
     parameters: castSchema(createEntriesParameters),
     execute: async (args) => {
       const parsed = createEntriesParameters.parse(args) as {
@@ -87,7 +89,9 @@ export const buildEntryTools = (): MCPTool[] => {
 
   const setActiveEntryTool: MCPTool = {
     name: 'setActiveEntry',
-    description: 'アクティブなエントリを切り替える。',
+    description: `現在注目しているエントリ（アクティブエントリ）を切り替える。
+entryId に既存の ID を渡すと active.json と表示用 Markdown を更新する。
+null を渡すとアクティブ状態を解除して (none) 表示に戻す。`,
     parameters: castSchema(setActiveEntryParameters),
     execute: async (args) => {
       const parsed = setActiveEntryParameters.parse(args) as {
@@ -109,7 +113,9 @@ export const buildEntryTools = (): MCPTool[] => {
 
   const getActiveEntryTool: MCPTool = {
     name: 'getActiveEntry',
-    description: 'アクティブなやることエントリを取得する。',
+    description: `アクティブなやることエントリを取得する。
+返り値は { entryId, title, note, status, createdAt, updatedAt } 形式の JSON もしくは null。
+アクティブ未設定の場合は null が返る。`,
     execute: async () => {
       const record = await getActiveEntryRecord();
       return JSON.stringify(record);
@@ -118,7 +124,10 @@ export const buildEntryTools = (): MCPTool[] => {
 
   const deleteEntriesTool: MCPTool = {
     name: 'deleteEntries',
-    description: 'やることエントリをまとめて削除する。',
+    description: `やることエントリをまとめて削除する。
+entryIds に文字列 ID を配列で指定する。
+存在しない ID が含まれると UserError を返す。
+アクティブな ID が含まれている場合は自動的にアクティブ状態を解除してビューを (none) に更新する。`,
     parameters: castSchema(deleteEntriesParameters),
     execute: async (args) => {
       const parsed = deleteEntriesParameters.parse(args) as {
@@ -140,7 +149,10 @@ export const buildEntryTools = (): MCPTool[] => {
 
   const updateEntryTool: MCPTool = {
     name: 'updateEntry',
-    description: 'やることエントリのメモやステータスを更新する。',
+    description: `既存エントリの note と status を部分更新する。
+note に文字列を渡すとメモが上書きされ、空文字を指定するとメモを消去できる。
+status は todo / doing / done のいずれか。
+更新後は updatedAt が再計算され、アクティブエントリの場合はビューも最新化される。`,
     parameters: castSchema(updateEntryParameters),
     execute: async (args) => {
       const parsed = updateEntryParameters.parse(args) as {
@@ -175,7 +187,10 @@ export const buildEntryTools = (): MCPTool[] => {
 
   const listEntriesTool: MCPTool = {
     name: 'listEntries',
-    description: '登録済みのやることエントリを取得する。',
+    description: `登録済みエントリの軽量サマリーを取得する。
+includeDone を true にすると完了済みも含める。
+既定では todo / doing のみを返す。
+返り値は { entryId, title, status, updatedAt } の配列。`,
     parameters: castSchema(
       z
         .object({
