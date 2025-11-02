@@ -149,6 +149,7 @@ Last Updated: 2025-10-29T10:20:00+09:00
 - **人間**: `views/active-entry.md` を開いたまま、いま注目しているやることを確認。
 - **LLM エージェント**: `createEntries` でやることメモをまとめて登録し、進捗に応じて `updateEntry` でステータスやメモを更新。
 - エントリを切り替えることで、人とエージェントの意図合わせをシンプルに保つ。
+- CLI からも `side-context-mcp` ツールを用いてエントリ作成・一覧取得・更新・削除・アクティブ操作が可能。
 
 
 ## 8. 実装メモ / 未決事項
@@ -160,7 +161,39 @@ Last Updated: 2025-10-29T10:20:00+09:00
 - **削除／アーカイブ**: エントリの寿命管理（削除・アーカイブ・日付絞り込み）は今後の利用状況を見て追加する。
 - **互換性**: 旧 Task モデルからの移行が必要な場合、変換スクリプトやマイグレーション手順を別途用意する。
 
-## 9. 削除機能の設計詳細
+## 9. CLI 設計概要
+
+- **entry server**
+  - 既定の挙動はサーバー起動。`side-context-mcp`（引数なし）と `side-context-mcp server` のどちらでも stdio で MCP サーバーを開始できる。
+  - オプション: `--transport stdio|httpStream`。
+
+- **entry create**
+  - `--title` / `--note` で単一エントリを追加。`--file <path>` で JSON 配列を読み込んで一括作成。
+  - 出力: 作成された `entryIds` を JSON で返す（テキスト形式では ID とタイトルを列挙）。
+
+- **entry list**
+  - 保存済みエントリの要約を表示。`--include-done` と `--format json|table` をサポート。`table` 表示時は `entryId | status | title | updatedAt` の順で表示。
+
+- **entry active**
+  - サブサブコマンドで構成。
+    - `side-context-mcp active show`: 現在のアクティブエントリを表示（`--json` で JSON 出力）。
+    - `side-context-mcp active set <entryId>`: アクティブエントリを切り替える。
+    - `side-context-mcp active clear`: アクティブエントリを解除。
+
+- **entry update <entryId>**
+  - `--note` / `--status` を指定してメモとステータスを更新。`--note ""` でメモを削除できる。
+  - 出力: 更新後の `EntryRecord` を JSON（またはテキスト）で返す。
+
+- **entry delete**
+  - `side-context-mcp delete <entryId...>` で複数エントリを一括削除。`--stdin` を付けると標準入力の JSON 配列から ID リストを読み取る。
+  - 削除結果として `deletedEntryIds` を JSON で返し、アクティブエントリが削除対象なら `(none)` に切り替える。
+
+- **共通仕様**
+  - `--home <path>` で `SIDE_CONTEXT_MCP_HOME` を上書き可能。未指定時は環境変数→既定パス（`~/.side-context-mcp`）の順に解決。
+  - `--json` を指定すると各サブコマンドの出力を JSON 固定にする。
+  - コマンドエラー時は `process.exitCode = 1` をセットし、メッセージを stderr に出力する。
+
+## 10. 削除機能の設計詳細
 
 - **目的**: 誤登録や不要になったエントリをまとめて消す運用を想定し、ツールから一括削除できるようにする。
 - **API 入力**: `deleteEntries({ entryIds: string[] })`。配列は 1 件以上必須とし、重複 ID は事前に正規化する。
