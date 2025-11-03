@@ -13,10 +13,6 @@ import {
   setActiveEntryRecord,
 } from './storage/activeEntryRepository.js';
 
-const notImplemented = async (): Promise<never> => {
-  throw new UserError('Not implemented');
-};
-
 type MCPAuth = Record<string, unknown> | undefined;
 type MCPTool = Tool<MCPAuth>;
 
@@ -35,14 +31,6 @@ const castSchema = <Schema extends z.ZodTypeAny>(
   schema: Schema,
 ): ToolParameters => {
   return schema as unknown as ToolParameters;
-};
-
-const createPlaceholderTool = (name: string, description: string): MCPTool => {
-  return {
-    name,
-    description,
-    execute: notImplemented,
-  };
 };
 
 const setActiveEntryParameters = z.object({
